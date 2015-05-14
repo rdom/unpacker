@@ -34,9 +34,7 @@ int main(int argc, const char ** argv){
   
   u.SetOutFile(outFile);
   u.Decode(0,0);
-  
-  std::cout<<"real end F" <<std::endl;
-  
+
   return 0;
 }
 

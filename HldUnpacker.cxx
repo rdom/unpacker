@@ -2,14 +2,15 @@
 #include <bitset>
 
 const Int_t tdcmax(10000);
-const Int_t maxch =3000;
+const Int_t maxch(3000);
 const Int_t nmcp(15), npix(64);
+const Int_t maxmch(nmcp*npix);
 Int_t tdcmap[tdcmax];
 Int_t map_mpc[nmcp][npix];
-Int_t map_mcp[maxch];
-Int_t map_pix[maxch];
-Int_t map_row[maxch];
-Int_t map_col[maxch];
+Int_t map_mcp[maxmch];
+Int_t map_pix[maxmch];
+Int_t map_row[maxmch];
+Int_t map_col[maxmch];
 
 const Int_t tdcnum(41);
 TString tdcsid[tdcnum] ={"2000","2001","2002","2003","2004","2005","2006","2007","2008","2009",
@@ -19,18 +20,18 @@ TString tdcsid[tdcnum] ={"2000","2001","2002","2003","2004","2005","2006","2007"
 };
 
 void CreateMap(){
-  Int_t seqid =0;
+  Int_t seqid =-1;
   for(Int_t i=0; i<tdcmax; i++){
     tdcmap[i]=0;
     for(Int_t j=0; j<tdcnum; j++){
       if(i==TString::BaseConvert(tdcsid[j],16,10).Atoi()){
-	tdcmap[i]=seqid++;
+	tdcmap[i]=++seqid;
 	break;
       }
     }
   }
   
-  for(Int_t ch=0; ch<maxch; ch++){
+  for(Int_t ch=0; ch<maxmch; ch++){
     Int_t mcp = ch/64;
     Int_t pix = ch%64;	
     Int_t col = pix/2 - 8*(pix/16);
@@ -57,7 +58,7 @@ HldUnpacker::HldUnpacker(string hldFName, string tdcFName,
 			 UInt_t subEventId, UInt_t ctsAddress,
 			 UInt_t verbose) : fVerbose(verbose){
   fRootName = "tt.root";
-  fTriggerChannel = -1;
+  fTriggerChannel = 1776;
   fTrailingTime.resize(3000);
   fTdcAddresses.reserve(NO_OF_TDC_ADDRESSES);
 
@@ -85,12 +86,15 @@ void HldUnpacker::Decode(Long_t startEvent, Long_t endEvent) {
   TFile *file = new TFile(fRootName.c_str(),"RECREATE");
   TTree *tree = new TTree("data","dirc@gsi hld unpacker",2);
 	
-  tree->SetCacheSize(10000000);
-   tree->AddBranchToCache("*");
+  // tree->SetCacheSize(10000000);
+  // tree->AddBranchToCache("*");
   
   RewindFile();
+  
+  std::cout<<"fHldFile.tellg()1  "<< fHldFile.tellg()<<std::endl;
+
   fHldFile.seekg(fEvtIndex.at(startEvent),ios::beg);
- 
+
   PrtEvent event;
   tree->Branch("PrtEvent","PrtEvent",&event,128000,2);
 
@@ -99,10 +103,9 @@ void HldUnpacker::Decode(Long_t startEvent, Long_t endEvent) {
   std::cout<<"# of events  "<< endEvent<<std::endl;
   
   CreateMap();
-  
   for(Long_t e = startEvent; e<endEvent; e++){
     if(e%10000==0) std::cout<<"event # "<< e <<std::endl;
-    //if(e>100000) break;
+    if(e>10) break;
     
     event = PrtEvent();
     if(ReadEvent(&event, kTRUE) && event.GetHitSize()>0 ){
@@ -124,24 +127,37 @@ void HldUnpacker::IndexEvents(){
 
 Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
   UInt_t ehHSize = sizeof(HLD_HEADER);
-    
   // read header of the event
+  if(all){
+    // RewindFile();
+  }
   fHldFile.read((char*)&fEventHeader,ehHSize);
-  if(fHldFile.gcount() != ehHSize) return kFALSE;
+  if(fHldFile.gcount() != ehHSize) {
+     std::cout<<fHldFile.gcount()<<" "<<ehHSize <<std::endl;
+    return kFALSE;
+
+  }
   dataBytes = fEventHeader.nSize - ehHSize;
+  
   UInt_t baseEventSize = 1 << ((fEventHeader.nDecoding >> 16) & 0xFF);
   
   if(fEventHeader.nSize == ehHSize){
     UInt_t skipbytes = baseEventSize * (size_t)((fEventHeader.nSize-1)/baseEventSize + 1) - fEventHeader.nSize;
     if(skipbytes>0) fHldFile.ignore(skipbytes);
     return kTRUE;
-  }  
-  
-  if(!all) fHldFile.ignore(dataBytes);
-  else{
-    if(fVerbose){
-      //   std::cout<<"HLD_HEADER  "<<fEventHeader.nSeqNr <<" "<< fEventHeader.nRun<<std::endl;
+  }
 
+  if(!all) {
+    fHldFile.ignore(dataBytes);
+    std::cout<<fHldFile.tellg()<<" "<<fEvtIndex[fEvtIndex.size()-1]  <<std::endl;
+    if( fHldFile.tellg()<fEvtIndex[fEvtIndex.size()-1]){
+      
+      //skip empty bytes at the end of event
+      UInt_t skipbytes = baseEventSize * (size_t)((fEventHeader.nSize-1)/baseEventSize + 1) - fEventHeader.nSize;
+      if(skipbytes>0) fHldFile.ignore(skipbytes);
+    }
+  }else{
+    if(fVerbose){
       cout << "  Size: \t\t" << fEventHeader.nSize
     	   << "  Decoding: \t" << hex << fEventHeader.nDecoding << dec
     	   << "  ID: \t\t" << hex << fEventHeader.nId << dec
@@ -159,19 +175,21 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
       PrtHit hit;
       hit = fHitArray[i];
       Int_t ch = hit.GetChannel();
+      hit.SetLeadTime(hit.GetLeadTime()-fTriggerTime);
       hit.SetTotTime(hit.GetLeadTime()-fTrailingTime[ch]);
       event->AddHit(hit);
     }
     event->SetTime(10);
   }
-  
- 
 
+  
+  
+  
   return kTRUE;
 }
 
 Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
-  UInt_t tdcAddress(0), trbWords(0), trbAddress(0), tdcChannel, subEvtId(0), tdcErrCode,
+  UInt_t trbWords(0), trbAddress(0), tdcChannel, subEvtId(0), tdcErrCode,
     edge(0), epochCounter(0), coarseTime(0), fineTime(0), startdata = data;
     Int_t tdcLastChannelNo(0);
     UInt_t shHSize = sizeof(SUB_HEADER);
@@ -187,8 +205,6 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     fSubEventHeader.nEventId	= SwapBigEndian(fSubEventHeader.nEventId);
     fSubEventHeader.nTrigger	= SwapBigEndian(fSubEventHeader.nTrigger);
 
-    //    std::cout<<" data size "<< fSubEventHeader.nSize- sizeof(SUB_HEADER)- sizeof(SUB_TRAILER) <<std::endl;  
-    
     if(fVerbose){
       cout << "\t  Size:  \t" << fSubEventHeader.nSize
     	   << "\t  Decoding: \t" << hex << fSubEventHeader.nDecoding << dec
@@ -205,107 +221,105 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     fHldFile.read((char*)&fTrbData[0],trbDataBytes);
     data -= fHldFile.gcount();
     transform(fTrbData.begin(),fTrbData.end(),fTrbData.begin(),SwapBigEndian);
-    
-    TDC_HEADER tdcHeader;
-    UInt_t tdcWords(0);
 
     // for(UInt_t i=0;i<fTrbData.size();i=i+4){
     //   std::cout<<std::bitset<32>(fTrbData[i]) <<"  "<<std::bitset<32>(fTrbData[i+1]) <<"  "<<std::bitset<32>(fTrbData[i+2]) <<"  "<<std::bitset<32>(fTrbData[i+3]) <<std::endl;
     // }
     // std::cout<<"============================ " <<  fTrbData.size() <<std::endl;
     
-
+    if(false)
     for(UInt_t i=0;i<fTrbData.size();i=i+1){
       UInt_t word = fTrbData[i];
       trbAddress = word & 0xFFFF;
       trbWords   = word>>16;
-      if(CheckTdcAddress(trbAddress)) {
-	//std::cout<<fTrbData[i]  << "    a "<<trbAddress << "  w "<< trbWords<<std::endl;
+
+      //if(trbAddress< 10000 && tdcmap[trbAddress]!=0) {
+      if(trbAddress==8193){
+	std::cout<<"tdcmap[trbAddress] "<<tdcmap[trbAddress] <<std::endl;
 	std::cout<<RED<<hex<<fTrbData[i]  <<CYAN <<"  a "<<trbAddress << dec<<YELLOW<<"  w "<< trbWords<<std::endl;
       }
+	// }
     }
-    
+
+    UInt_t tdcWords(0), tdcAddress(0);
     for(UInt_t i=0;i<fTrbData.size();i++){
       UInt_t word = fTrbData[i];
       
-      if(tdcWords==0){
-    	trbAddress = word & 0xFFFF;
-    	trbWords   = word>>16;
-	
-	if(CheckHubAddress(trbAddress)) {
-	  //std::cout<<"HUB  "<<trbAddress <<std::endl;
-	}else if(CheckTdcAddress(trbAddress)) {
-    	  tdcAddress = trbAddress;
-    	  tdcWords   = trbWords;
-	  //std::cout<<"TDC  "<<trbAddress <<std::endl;
-    	}else {
-	  i += trbWords;
-    	  continue;
-    	}
-      }else if(tdcWords==trbWords){
+      trbAddress = word & 0xFFFF;
+      trbWords   = word>>16;
 
-	// read TDC header
-	tdcHeader.nRandomBits	= 0;
-	tdcHeader.nErrorBits	= 0;
-	if(((word>>29) & 0x7) != TDC_HEADER_MARKER){
-	  i += tdcWords-1;
-	  tdcWords = 0;
-	  continue;
-	}
-	tdcHeader.nRandomBits	= (word>>16) & 0xFF;
-	tdcHeader.nErrorBits	= word & 0xFFFF;
-	tdcLastChannelNo = -1;
+      if(trbAddress< 10000 && tdcmap[trbAddress]>=0) tdcWords  = trbWords;
 
-	tdcWords--;  // successfully parsed Tdc Header
-      }else{
-	// read TDC data	
-	UInt_t idBit = (word>>29) & 0x7; // EPOCH or DEBUG
+      if(tdcWords>0){
+	for(UInt_t t=0; t<tdcWords; t++){
+	  word = fTrbData[i+1+t];
+	  if(t==0){ // read TDC header
+	    TDC_HEADER tdcHeader;
 
-	if(idBit == TDC_EPOCH_MARKER) {
-	  epochCounter = word & 0xFFFFFFF;
-	  tdcLastChannelNo = -2; // epoch
-	  continue;
-	}	
-	if(idBit == TDC_DEBUG_MARKER) continue;
-	if((word>>31) != 1) continue; // not time data
-	tdcChannel = (word>>22) & 0x7F; // TDC channel number is represented by 7 bits
+	    if(((word>>29) & 0x7) != TDC_HEADER_MARKER){
+	      std::cout<<"not tdc header " <<std::endl; 
+	      continue;
+	    }
 
-	if(tdcLastChannelNo>=0 && (Int_t)tdcChannel != tdcLastChannelNo) {
-	  //if(fVerbose)
+	    tdcHeader.nRandomBits	= (word>>16) & 0xFF;
+	    tdcHeader.nErrorBits	= word & 0xFFFF;
+	    tdcLastChannelNo = -1;
+	    continue;
+	  }
+
+	  // read TDC data	
+	  UInt_t idBit = (word>>29) & 0x7; // EPOCH or DEBUG
+	  if(idBit == TDC_EPOCH_MARKER) {
+	    epochCounter = word & 0xFFFFFFF;
+	    tdcLastChannelNo = -2; // epoch
+	    continue;
+	  }	
+	  if(idBit == TDC_DEBUG_MARKER) continue;
+	  if((word>>31) != 1) continue; // not time data
+	  
+	  tdcChannel = (word>>22) & 0x7F; // TDC channel number is represented by 7 bits
+
+	  if(tdcLastChannelNo>=0 && (Int_t)tdcChannel != tdcLastChannelNo) {
+	    //if(fVerbose)
 	    cout << "Epoch Counter reset since channel has changed" << endl;
-	  epochCounter = 0;
-	}
-	
-	fineTime   = (word>>12) & 0x3FF; // TDC fine time is represented by 10 bits
-	edge	   = (word>>11) & 0x1;   // TDC edge indicator: 1->rising edge, 0->falling edge
-	coarseTime = word & 0x7FF;       // TDC coarse time is represented by 11 bits
-	Double_t time = 5*(epochCounter*pow(2.0,11) + coarseTime)-(fineTime-31)*0.0102;
+	    epochCounter = 0;
+	  }
 
-	tdcLastChannelNo = (Int_t)tdcChannel;
-	tdcWords--;
+	  fineTime      = (word>>12) & 0x3FF; // TDC fine time is represented by 10 bits
+	  edge	        = (word>>11) & 0x1;   // TDC edge indicator: 1->rising edge, 0->falling edge
+	  coarseTime    = word & 0x7FF;       // TDC coarse time is represented by 11 bits
+	  Double_t time = 5*(epochCounter*pow(2.0,11) + coarseTime)-(fineTime-31)*0.0102;
 
-	//	TrbHit hit(trbAddress, tdcChannel, subEvtId, tdcErrCode, edge, epochCounter, coarseTime, fineTime);
+	  tdcLastChannelNo = (Int_t)tdcChannel;
 
-	Int_t ch, timeLe,timeTe, timeTot;
-	//if(tdcChannel==0 || tdcChannel>48) continue;
-	ch = 48*tdcmap[trbAddress]+tdcChannel;
+	  {
+	    //	TrbHit hit(trbAddress, tdcChannel, subEvtId, tdcErrCode, edge, epochCounter, coarseTime, fineTime);
+
+	    Int_t ch, timeLe,timeTe, timeTot;
+	    if(tdcChannel==0 || tdcChannel>48) continue;
+	    ch = 48*tdcmap[trbAddress]+tdcChannel;
 	
-	if(edge==0){
-	  fTrailingTime[ch]=time;
-	  // continue;
-	}
-	if(ch==fTriggerChannel) fTriggerTime = time;
+	    if(edge==0){
+	      fTrailingTime[ch]=time;
+	      continue;
+	    }
+	    if(ch==fTriggerChannel) fTriggerTime = time;
 	
-	PrtHit hit;
-	hit.SetTdc(tdcChannel);
-	hit.SetTrb(trbAddress);
-	hit.SetChannel(ch);
-	hit.SetMcpId(map_mcp[ch]);
-	hit.SetPixelId(map_pix[ch]);
-	hit.SetLeadTime(time);
+	    PrtHit hit;
+	    hit.SetTdc(tdcChannel);
+	    hit.SetTrb(trbAddress);
+	    hit.SetChannel(ch);
+	    hit.SetMcpId(map_mcp[ch]);
+	    hit.SetPixelId(map_pix[ch]);
+	    hit.SetLeadTime(time);
  
-	fHitArray.push_back(hit);
+	    fHitArray.push_back(hit);
+	  }
+	}
+
       }
+
+      i += trbWords;
     }
 
     // read subevent trailer information
