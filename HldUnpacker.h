@@ -53,7 +53,7 @@ using namespace std;
 class HldUnpacker {
 
 public:
-  HldUnpacker(string hldFName, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t verbose=0); 
+  HldUnpacker(string hldFName, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t mode = 0, UInt_t verbose=0); 
   ~HldUnpacker(){};
   
   void SetOutFile(string var){fRootName = var; }
@@ -72,8 +72,6 @@ private:
   SUB_TRAILER fSubEventTrailer;
   
   void IndexEvents();
-  Bool_t CheckHubAddress(UInt_t& nUserHubAddress);
-  Bool_t CheckTdcAddress(UInt_t& nUserTdcAddress);
   
   void RewindFile() { fHldFile.seekg(0,ios::beg); }; // set file get pointer to beginning of HLD file
   Int_t SetHubAddresses(string adressesFile);
@@ -90,8 +88,9 @@ private:
   Double_t fTriggerTime;
   TRB_SETUP TrbSettings;
   UInt_t fCurrentSize;
+  UInt_t fMode;
   UInt_t fVerbose;
-  UInt_t dataBytes;
+  UInt_t fDataBytes;
 };
 
 #endif

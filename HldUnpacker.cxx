@@ -1,11 +1,17 @@
 #include "HldUnpacker.h"
+
+#include <TH1F.h>
+#include <TCanvas.h>
+#include "../prttools/prttools.C"
+
 #include <bitset>
 
+
+
 const Int_t tdcmax(10000);
-const Int_t maxch(3000);
 const Int_t nmcp(15), npix(64);
 const Int_t maxmch(nmcp*npix);
-Int_t tdcmap[tdcmax];
+Int_t tdcmap[tdcmax]={0};
 Int_t map_mpc[nmcp][npix];
 Int_t map_mcp[maxmch];
 Int_t map_pix[maxmch];
@@ -13,22 +19,22 @@ Int_t map_row[maxmch];
 Int_t map_col[maxmch];
 
 const Int_t tdcnum(41);
+const Int_t maxch(tdcnum*48);
 TString tdcsid[tdcnum] ={"2000","2001","2002","2003","2004","2005","2006","2007","2008","2009",
 			 "200a","200b","200c","200d","200e","200f","2010","2011","2012","2013",
 			 "2014","2015","2016","2018","2019","201a","201c","2020","2023","2024",
 			 "2025","2026","2027","2028","2029","202a","202b","202c","202d","202e","202f"
 };
 
+
+TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
+
 void CreateMap(){
+  
   Int_t seqid =-1;
-  for(Int_t i=0; i<tdcmax; i++){
-    tdcmap[i]=0;
-    for(Int_t j=0; j<tdcnum; j++){
-      if(i==TString::BaseConvert(tdcsid[j],16,10).Atoi()){
-	tdcmap[i]=++seqid;
-	break;
-      }
-    }
+  for(Int_t i=0; i<tdcnum; i++){
+    Int_t dec = TString::BaseConvert(tdcsid[i],16,10).Atoi();
+    tdcmap[dec]=++seqid;
   }
   
   for(Int_t ch=0; ch<maxmch; ch++){
@@ -47,19 +53,15 @@ void CreateMap(){
 }
 
 UInt_t SwapBigEndian(UInt_t nBigEndianNumber){
-  return ( ((nBigEndianNumber & 0x000000FF)<<24) // move last byte to front
-	   + ((nBigEndianNumber & 0x0000FF00)<<8) 
-	   + ((nBigEndianNumber & 0x00FF0000)>>8)
-	   + ((nBigEndianNumber & 0xFF000000)>>24)
-	   );
+  return __builtin_bswap32(nBigEndianNumber);
 }
 
 HldUnpacker::HldUnpacker(string hldFName, string tdcFName,
 			 UInt_t subEventId, UInt_t ctsAddress,
-			 UInt_t verbose) : fVerbose(verbose){
+			 UInt_t mode,UInt_t verbose) : fMode(mode),fVerbose(verbose){
   fRootName = "tt.root";
   fTriggerChannel = 1776;
-  fTrailingTime.resize(3000);
+  fTrailingTime.resize(maxch);
   fTdcAddresses.reserve(NO_OF_TDC_ADDRESSES);
 
   TrbSettings.nSubEventId = 0; // set subevent ID to 0 (should be 0x8C00 for TRBv3)
@@ -68,7 +70,6 @@ HldUnpacker::HldUnpacker(string hldFName, string tdcFName,
   TrbSettings.nTdcAddress.reserve(NO_OF_TDC_ADDRESSES);
   TrbSettings.nSubEventId = subEventId;
   TrbSettings.nCtsAddress = ctsAddress;
-
 
   fEvtIndex.clear();
   fEvtIndex.reserve(10000000);
@@ -83,38 +84,46 @@ HldUnpacker::HldUnpacker(string hldFName, string tdcFName,
 
 void HldUnpacker::Decode(Long_t startEvent, Long_t endEvent) {
 
-  TFile *file = new TFile(fRootName.c_str(),"RECREATE");
-  TTree *tree = new TTree("data","dirc@gsi hld unpacker",2);
-	
-  // tree->SetCacheSize(10000000);
-  // tree->AddBranchToCache("*");
+  TFile *file;
+  TTree *tree;
+  PrtEvent event;
   
+  fHldFile.clear();
   RewindFile();
   
-  std::cout<<"fHldFile.tellg()1  "<< fHldFile.tellg()<<std::endl;
-
   fHldFile.seekg(fEvtIndex.at(startEvent),ios::beg);
 
-  PrtEvent event;
-  tree->Branch("PrtEvent","PrtEvent",&event,128000,2);
-
+  if(fMode==0){
+    file = new TFile(fRootName.c_str(),"RECREATE");
+    tree = new TTree("data","dirc@gsi hld unpacker",2);  
+    tree->Branch("PrtEvent","PrtEvent",&event,128000,2);
+  }
   
   if(endEvent==0) endEvent = fEvtIndex.size();
   std::cout<<"# of events  "<< endEvent<<std::endl;
   
   CreateMap();
+  initDigi(0);
   for(Long_t e = startEvent; e<endEvent; e++){
     if(e%10000==0) std::cout<<"event # "<< e <<std::endl;
-    if(e>10) break;
+    //if(e>1000) break;
     
-    event = PrtEvent();
-    if(ReadEvent(&event, kTRUE) && event.GetHitSize()>0 ){
-      tree->Fill();
+    if(fMode==0) event = PrtEvent();
+    
+    if(ReadEvent(&event, kTRUE)){
+      if(event.GetHitSize()>0) tree->Fill();
     }
   }
-  std::cout<<"end  "<<std::endl;
+  if(fMode==0) tree->Write();
 
-  tree->Write();
+  TCanvas *c = new TCanvas("c","c",0,0,800,400);
+  hTimeDiff->Draw();
+  c->Modified();
+  c->Update();
+  c->Print("time.png");
+  SetRootPalette(1);
+  drawDigi("m,p,v\n",2,-2,-2);
+  cDigi->Print("digi.png");
 }
 
 void HldUnpacker::IndexEvents(){
@@ -128,17 +137,11 @@ void HldUnpacker::IndexEvents(){
 Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
   UInt_t ehHSize = sizeof(HLD_HEADER);
   // read header of the event
-  if(all){
-    // RewindFile();
-  }
   fHldFile.read((char*)&fEventHeader,ehHSize);
-  if(fHldFile.gcount() != ehHSize) {
-     std::cout<<fHldFile.gcount()<<" "<<ehHSize <<std::endl;
-    return kFALSE;
-
-  }
-  dataBytes = fEventHeader.nSize - ehHSize;
+  if(fHldFile.gcount() != ehHSize) return kFALSE;
   
+  
+  fDataBytes = fEventHeader.nSize - ehHSize;
   UInt_t baseEventSize = 1 << ((fEventHeader.nDecoding >> 16) & 0xFF);
   
   if(fEventHeader.nSize == ehHSize){
@@ -147,16 +150,8 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
     return kTRUE;
   }
 
-  if(!all) {
-    fHldFile.ignore(dataBytes);
-    std::cout<<fHldFile.tellg()<<" "<<fEvtIndex[fEvtIndex.size()-1]  <<std::endl;
-    if( fHldFile.tellg()<fEvtIndex[fEvtIndex.size()-1]){
-      
-      //skip empty bytes at the end of event
-      UInt_t skipbytes = baseEventSize * (size_t)((fEventHeader.nSize-1)/baseEventSize + 1) - fEventHeader.nSize;
-      if(skipbytes>0) fHldFile.ignore(skipbytes);
-    }
-  }else{
+  if(!all) fHldFile.ignore(fDataBytes);  
+  else{
     if(fVerbose){
       cout << "  Size: \t\t" << fEventHeader.nSize
     	   << "  Decoding: \t" << hex << fEventHeader.nDecoding << dec
@@ -169,21 +164,28 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
     }
     
     fHitArray.clear();
-    std::fill(fTrailingTime.begin(), fTrailingTime.end(), 0);
-    ReadSubEvent(dataBytes);
+    //    std::fill(fTrailingTime.begin(), fTrailingTime.end(), 0);
+    ReadSubEvent(fDataBytes);
+
     for(Int_t i=0; i<fHitArray.size(); i++){
       PrtHit hit;
       hit = fHitArray[i];
       Int_t ch = hit.GetChannel();
       hit.SetLeadTime(hit.GetLeadTime()-fTriggerTime);
       hit.SetTotTime(hit.GetLeadTime()-fTrailingTime[ch]);
-      event->AddHit(hit);
+      if(fMode==0) event->AddHit(hit);
+      hTimeDiff->Fill(hit.GetTotTime());
+     
+      if(hit.GetMcpId()<15)
+	fhDigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
+      
     }
-    event->SetTime(10);
+    if(fMode==0) event->SetTime(10);
   }
 
-  
-  
+  //skip empty bytes at the end of event
+  UInt_t skipbytes = baseEventSize * (size_t)((fEventHeader.nSize-1)/baseEventSize + 1) - fEventHeader.nSize;
+  if(skipbytes>0) fHldFile.ignore(skipbytes);
   
   return kTRUE;
 }
@@ -200,10 +202,11 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     data -= fHldFile.gcount();
 
     // convert header words from big Endian to little Endian type
-    fSubEventHeader.nSize	= SwapBigEndian(fSubEventHeader.nSize);
-    fSubEventHeader.nDecoding	= SwapBigEndian(fSubEventHeader.nDecoding);
-    fSubEventHeader.nEventId	= SwapBigEndian(fSubEventHeader.nEventId);
-    fSubEventHeader.nTrigger	= SwapBigEndian(fSubEventHeader.nTrigger);
+
+    fSubEventHeader.nSize	= __builtin_bswap32(fSubEventHeader.nSize);
+    fSubEventHeader.nDecoding	= __builtin_bswap32(fSubEventHeader.nDecoding);
+    fSubEventHeader.nEventId	= __builtin_bswap32(fSubEventHeader.nEventId);
+    fSubEventHeader.nTrigger	= __builtin_bswap32(fSubEventHeader.nTrigger);
 
     if(fVerbose){
       cout << "\t  Size:  \t" << fSubEventHeader.nSize
@@ -244,6 +247,8 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     UInt_t tdcWords(0), tdcAddress(0);
     for(UInt_t i=0;i<fTrbData.size();i++){
       UInt_t word = fTrbData[i];
+      //std::cout<<"word "<< hex<< word  << dec<<std::endl;
+      
       
       trbAddress = word & 0xFFFF;
       trbWords   = word>>16;
@@ -253,6 +258,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
       if(tdcWords>0){
 	for(UInt_t t=0; t<tdcWords; t++){
 	  word = fTrbData[i+1+t];
+	  //std::cout<<" "<< hex<< word  << dec<<std::endl;
 	  if(t==0){ // read TDC header
 	    TDC_HEADER tdcHeader;
 
@@ -280,8 +286,8 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  tdcChannel = (word>>22) & 0x7F; // TDC channel number is represented by 7 bits
 
 	  if(tdcLastChannelNo>=0 && (Int_t)tdcChannel != tdcLastChannelNo) {
-	    //if(fVerbose)
-	    cout << "Epoch Counter reset since channel has changed" << endl;
+	    if(fVerbose)
+	      cout << "Epoch Counter reset since channel has changed" << endl;
 	    epochCounter = 0;
 	  }
 
@@ -293,26 +299,29 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  tdcLastChannelNo = (Int_t)tdcChannel;
 
 	  {
-	    //	TrbHit hit(trbAddress, tdcChannel, subEvtId, tdcErrCode, edge, epochCounter, coarseTime, fineTime);
-
 	    Int_t ch, timeLe,timeTe, timeTot;
 	    if(tdcChannel==0 || tdcChannel>48) continue;
-	    ch = 48*tdcmap[trbAddress]+tdcChannel;
+	    ch = 48*tdcmap[trbAddress]+tdcChannel-1;
 	
 	    if(edge==0){
 	      fTrailingTime[ch]=time;
 	      continue;
 	    }
-	    if(ch==fTriggerChannel) fTriggerTime = time;
-	
+	    if(ch==fTriggerChannel) fTriggerTime = time;	   
+	    
 	    PrtHit hit;
 	    hit.SetTdc(tdcChannel);
 	    hit.SetTrb(trbAddress);
-	    hit.SetChannel(ch);
-	    hit.SetMcpId(map_mcp[ch]);
-	    hit.SetPixelId(map_pix[ch]);
 	    hit.SetLeadTime(time);
- 
+	    hit.SetChannel(ch);
+	    if(ch<maxmch){
+	      hit.SetMcpId(map_mcp[ch]);
+	      hit.SetPixelId(map_pix[ch]);
+	    }else {
+	      hit.SetMcpId(20);
+	      hit.SetPixelId(0);
+	    }
+	    
 	    fHitArray.push_back(hit);
 	  }
 	}
@@ -329,19 +338,20 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
      cerr << "Error reading subevent trailer from HLD file!" << endl;
      return kFALSE;
     }
-    fSubEventTrailer.nSebHeader	= SwapBigEndian(fSubEventTrailer.nSebHeader);
-    fSubEventTrailer.nSebError	= SwapBigEndian(fSubEventTrailer.nSebError);
-
+    fSubEventTrailer.nSebHeader	= __builtin_bswap32(fSubEventTrailer.nSebHeader);
+    fSubEventTrailer.nSebError	= __builtin_bswap32(fSubEventTrailer.nSebError);
+ 
     if(fSubEventTrailer.nSebError != SEB_ERROR_CODE){
       if(fVerbose) cout << "Error in Subevent Builder detected!" << endl;
     }
 
-    //std::cout<<"DATA  "<<data <<" "<<dataBytes<<std::endl;
+    // std::cout<<"DATA  "<<data <<" "<<fDataBytes<<std::endl;
+    if(!data) return kTRUE;
     if((startdata-data)%8){
       fHldFile.ignore(4);
       data -= 4;
     }
-    if(data>0) ReadSubEvent(data);
+    ReadSubEvent(data);
 
     return kTRUE;
 }
@@ -399,10 +409,3 @@ std::vector<string> HldUnpacker::LineParser(string line, char delimiter){
   return cTokens;
 }
 
-Bool_t HldUnpacker::CheckHubAddress(UInt_t& nUserHubAddress){
-  return ( find(TrbSettings.nHubAddress.begin(),TrbSettings.nHubAddress.end(),nUserHubAddress) != TrbSettings.nHubAddress.end());
-}
-
-Bool_t HldUnpacker::CheckTdcAddress(UInt_t& nUserTdcAddress){
-  return ( find(TrbSettings.nTdcAddress.begin(),TrbSettings.nTdcAddress.end(),nUserTdcAddress) != TrbSettings.nTdcAddress.end());
-}
