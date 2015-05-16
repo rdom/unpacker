@@ -1,4 +1,7 @@
 #include <iostream>
+#include <sstream>
+#include <algorithm>
+
 #include "HldUnpacker.h"
 
 using namespace std;
@@ -14,6 +17,8 @@ namespace {
     cout<<"    -v   verbose level "<<endl;
   }
 }
+
+vector<string>  gOldFiles;
 
 int main(int argc, const char ** argv){
 
@@ -40,7 +45,23 @@ int main(int argc, const char ** argv){
   HldUnpacker u(inFile,outFile,tdcAddresses,0x8100,0x7999,mode,verbose);
   
   if(mode<3) u.Decode(s,e);
-  else u.DecodeOnline(inFile);
+  else{
+
+    while(1){
+      system("rm -f  newfile.tmp && ls /data.local/may2015/ce*.hld -ltr | grep ^- | tail -1 | awk '{ print $(NF) }' | tr -d '\n' > newfile.tmp");
+      ifstream t("newfile.tmp");
+      inFile = string((istreambuf_iterator<char>(t)), istreambuf_iterator<char>()); 
+
+      if (std::find(gOldFiles.begin(), gOldFiles.end(), inFile) != gOldFiles.end()){
+	cout<<"No new files  "<<endl;	
+      }else{
+	cout<<"Reading  "<< inFile<<endl;
+	gOldFiles.push_back(inFile);
+	u.DecodeOnline(inFile);
+      }
+      sleep(1);
+    }
+  }
   
   return 0;
 }

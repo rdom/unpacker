@@ -24,6 +24,9 @@ TString tdcsid[tdcnum] ={"2000","2001","2002","2003","2004","2005","2006","2007"
 			 "2025","2026","2027","2028","2029","202a","202b","202c","202d","202e","202f"
 };
 
+
+Int_t gImgid;
+TCanvas *gCanvas = new TCanvas("gCanvas","gCanvas",0,0,800,400);
 TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
 TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",tdcnum,0,tdcnum);
 
@@ -56,9 +59,13 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   fTrailingTime.resize(maxch);
   fRefTime.resize(tdcnum);
   CreateMap();  
-  
-  fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
-  if(fHldFile.fail()) exit(-1);
+  SetRootPalette(1);
+  gImgid=0;
+
+  if(fMode<3){
+    fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
+    if(fHldFile.fail()) exit(-1);
+  }
   
   if(fMode==0) IndexEvents();
   else initDigi(0);
@@ -81,7 +88,7 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     if(endEvent==0) endEvent = fEvtIndex.size();
     std::cout<<"# of events  "<< endEvent<<std::endl;
   }else{
-    clearDigi();
+    resetDigi();
     if(endEvent==0) endEvent = 1000000;
   }
 
@@ -97,68 +104,78 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
   if(fMode==0) tree->Write();
   else{
     TString rand = randstr(10);
-    TCanvas *c = new TCanvas("c","c",0,0,800,400);
     hTimeDiff->Draw();
-    c->Modified();
-    c->Update();
-    c->Print("time_"+rand+".png");
-    c = new TCanvas("c1","c1",0,0,800,400);
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("time_%d.png",gImgid));
     hRefCh->Draw();
-    c->Modified();
-    c->Update();
-    c->Print("refch_"+rand+".png");
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("refch_%d.png",gImgid));
   
-    SetRootPalette(1);
     drawDigi("m,p,v\n",2,-2,-2);
-    cDigi->Print("digi_"+rand+".png");
+    cDigi->Print(Form("digi_%d.png",gImgid));
+    gImgid++;
   }
+}
+
+void resetHist(){
+  hTimeDiff->Reset();
+  hRefCh->Reset();
+  resetDigi();
 }
 
 void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
 
   fHldFile.clear();
   fHldFile.seekg(startPos,ios::beg);
-  clearDigi();
+  resetHist();
   
   PrtEvent event;
   Int_t e = 0;
   while(fHldFile.tellg() < endPos){
-    if(++e%10000==0) std::cout<<"event # "<< e <<std::endl;
+    if(++e%100000==0) std::cout<<"event # "<< e <<std::endl;
     if(!ReadEvent(&event, kTRUE))  break;
   }
   
   TString rand = randstr(5);
-  TCanvas *c = new TCanvas("c","c",0,0,800,400);
+  TString dir = "../online/data/";
   hTimeDiff->Draw();
-  c->Modified();
-  c->Update();
-  c->Print("time_"+rand+".png");
-  c = new TCanvas("c1","c1",0,0,800,400);
+  gCanvas->Modified();
+  gCanvas->Update();
+  gCanvas->Print(dir+Form("time_%d.png",gImgid));
   hRefCh->Draw();
-  c->Modified();
-  c->Update();
-  c->Print("refch_"+rand+".png");
+  gCanvas->Modified();
+  gCanvas->Update();
+  gCanvas->Print(dir+Form("refch_%d.png",gImgid));
   
-  SetRootPalette(1);
-  drawDigi("m,p,v\n",2,-2,-2);
-  cDigi->Print("digi_"+rand+".png");
+  TString csv = drawDigi("m,p,v\n",2,-2,-2);
+  ofstream  file;
+  file.open(dir+Form("digi_%d.csv",gImgid)); file<< csv; file.close();
+  
+  cDigi->Print(dir+Form("digi_%d.png",gImgid));
+  gImgid++;
 }
 
 void HldUnpacker::DecodeOnline(string inHld){
   
-    Int_t startPos(0);
-    fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
-    
-    if (fHldFile.is_open()){
-      while (true){
-	std::cout<<"startPos  "<< startPos <<std::endl;
-	DecodePos(startPos,startPos+10000000);
-	startPos = fHldFile.tellg();
-	// (!ifs.eof()) break;
-	fHldFile.clear();
-	sleep(2);
-      }
+  Int_t startPos(0), endPos(0);
+  fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
+  fHldFile.clear();
+
+  if(fHldFile.is_open()){
+    while (true){
+      fHldFile.seekg(0, std::ios::end);
+      endPos = fHldFile.tellg();
+      std::cout<<"startPos  "<< startPos << "   endPos  "<<endPos<<std::endl;
+      DecodePos(startPos,endPos);
+      if(startPos==endPos) break;
+      // (!ifs.eof()) break;
+      fHldFile.clear();
+      startPos = fHldFile.tellg();
+      sleep(2);
     }
+  }
 }
 
 Int_t HldUnpacker::IndexEvents(){
