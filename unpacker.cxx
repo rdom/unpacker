@@ -10,7 +10,7 @@ namespace {
     cout<<"    -o   outputFile.root "<<endl;
     cout<<"    -s   start event "<<endl;
     cout<<"    -e   end event "<<endl;
-    cout<<"    -m   mode; 0 - create root tree (default); 1 - create plots"<<endl;
+    cout<<"    -m   mode; 0 - create root tree (default); 1 - create plots; 3 - online"<<endl;
     cout<<"    -v   verbose level "<<endl;
   }
 }
@@ -37,11 +37,11 @@ int main(int argc, const char ** argv){
     }
   }
 
-  HldUnpacker u(inFile,tdcAddresses,0x8100,0x7999,mode,verbose);
+  HldUnpacker u(inFile,outFile,tdcAddresses,0x8100,0x7999,mode,verbose);
   
-  u.SetOutFile(outFile);
-  u.Decode(s,e);
-
+  if(mode<3) u.Decode(s,e);
+  else u.DecodeOnline(inFile);
+  
   return 0;
 }
 

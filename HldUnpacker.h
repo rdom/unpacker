@@ -1,14 +1,10 @@
-#ifndef TRBUNPACKER_H
-#define TRBUNPACKER_H
+#ifndef hld_unpacker_h
+#define hld_unpacker_h
 
-#include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <iterator>
-#include <locale>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #include "TClonesArray.h"
 #include "TFile.h"
@@ -53,40 +49,31 @@ using namespace std;
 class HldUnpacker {
 
 public:
-  HldUnpacker(string hldFName, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t mode = 0, UInt_t verbose=0); 
+  HldUnpacker(string hldFName, string outFile, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t mode=0, UInt_t verbose=0); 
   ~HldUnpacker(){};
-  
-  void SetOutFile(string var){fRootName = var; }
-  void Decode(Long_t startEvent, Long_t endEvent);  
+
+  Int_t IndexEvents();  
+  void Decode(Int_t startEvent, Int_t endEvent);
+  void DecodePos(Int_t startPos, Int_t endPos);
+  void DecodeOnline(string hldFName);  
   Bool_t ReadEvent(PrtEvent* event, Bool_t all);
   Bool_t ReadSubEvent(UInt_t data);
-  
-  Long_t GetHldEntries() const { return ((Long_t) fEvtIndex.size()); };
+  Bool_t GoodHeader(HLD_HEADER header);
 
-  std::vector<string> LineParser(string line, char delimiter);
-  
 private:
   ifstream fHldFile;
   HLD_HEADER fEventHeader;
   SUB_HEADER fSubEventHeader;
   SUB_TRAILER fSubEventTrailer;
   
-  void IndexEvents();
-  
-  void RewindFile() { fHldFile.seekg(0,ios::beg); }; // set file get pointer to beginning of HLD file
-  Int_t SetHubAddresses(string adressesFile);
-  Int_t SetTdcAddresses(string adressesFile);
-
   string fRootName;
   vector<Double_t> fTrailingTime;
+  vector<Double_t> fRefTime;
   vector<PrtHit> fHitArray;
-  vector<string> fHubAddresses;
-  vector<string> fTdcAddresses; // vector containing TDC addresses as strings
-  vector<Int_t>  fEvtIndex;     // vector containing raw file positions of events
+  vector<Int_t>  fEvtIndex;
 
   Int_t fTriggerChannel;
   Double_t fTriggerTime;
-  TRB_SETUP TrbSettings;
   UInt_t fCurrentSize;
   UInt_t fMode;
   UInt_t fVerbose;
