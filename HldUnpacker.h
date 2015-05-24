@@ -61,6 +61,7 @@ public:
   Bool_t ReadEvent(PrtEvent* event, Bool_t all);
   Bool_t ReadSubEvent(UInt_t data);
   Bool_t GoodHeader(HLD_HEADER header);
+  void SetDataRegex(string regex){fDataRegex = regex;}
 
 private:
   ifstream fHldFile;
@@ -73,6 +74,7 @@ private:
   vector<Double_t> fRefTime;
   vector<PrtHit> fHitArray;
   vector<Int_t>  fEvtIndex;
+  string fDataRegex;
 
   Int_t fTriggerChannel;
   Double_t fTriggerTime;

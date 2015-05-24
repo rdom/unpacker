@@ -54,6 +54,7 @@ int main(int argc, const char ** argv){
     string shellcmd = "rm -f  newfile.tmp && ls ";
     shellcmd.append(inRegex);
     shellcmd.append(" -ltr | grep ^- | tail -1 | awk '{ print $(NF) }' | tr -d '\n' > newfile.tmp");
+    u.SetDataRegex(shellcmd);
     while(1){
       system(shellcmd.c_str());
       ifstream t("newfile.tmp");

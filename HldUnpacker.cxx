@@ -18,6 +18,9 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   SetRootPalette(1);
   gImgid=0;
 
+  if(fVerbose>0) std::cout<<"File  "<< inHld <<std::endl;
+  
+  
   if(fMode<3){
     fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
     if(fHldFile.fail()) exit(-1);
@@ -33,7 +36,7 @@ void HldUnpacker::Reset(){
   
   hTimeDiff->Reset();
   hRefCh->Reset();
-  resetDigi();
+  if(fMode==3) resetDigi();
 }
 
 void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
@@ -54,7 +57,6 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     if(endEvent==0) endEvent = fEvtIndex.size();
     std::cout<<"# of events  "<< endEvent<<std::endl;
   }else{
-    resetDigi();
     if(endEvent==0) endEvent = 1000000;
   }
 
@@ -140,20 +142,33 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
   
 }
 
+vector<string>  gOldFiles0;
 void HldUnpacker::DecodeOnline(string inHld){
   
   Int_t startPos(0), endPos(0);
-  fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
   fHldFile.clear();
+  fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
+  gOldFiles0.push_back(inHld);
 
   if(fHldFile.is_open()){
     while (true){
+      fHldFile.clear();
       fHldFile.seekg(0, std::ios::end);
       endPos = fHldFile.tellg();
-      std::cout<<"startPos  "<< startPos << "   endPos  "<<endPos<<std::endl;
-      DecodePos(startPos,endPos);
-      if(startPos==endPos) break;
-      // (!ifs.eof()) break;
+      std::cout<<"File "<<inHld<<"  startPos  "<< startPos << "   endPos  "<<endPos<<std::endl;
+      if(startPos<endPos){
+	DecodePos(startPos,endPos);
+      }
+      if(startPos==endPos){
+	system(fDataRegex.c_str());
+	ifstream t("newfile.tmp");
+	string inFile = string((istreambuf_iterator<char>(t)), istreambuf_iterator<char>());
+	if (std::find(gOldFiles0.begin(), gOldFiles0.end(), inFile) == gOldFiles0.end()){
+	  cout<<"There is a new file  "<<endl;
+	  break;
+	}
+      }
+     
       fHldFile.clear();
       startPos = fHldFile.tellg();
       sleep(2);
@@ -178,7 +193,7 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
   // read header of the event
   fHldFile.read((char*)&fEventHeader,ehHSize);
   if(fHldFile.gcount() != ehHSize) return kFALSE;
- 
+
   //check header
   while(!GoodHeader(fEventHeader)){
     index += 4;
@@ -241,9 +256,9 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
 }
 
 Bool_t HldUnpacker::GoodHeader(HLD_HEADER header){
-  if(header.nDecoding == 196609)
-    return true;
-};
+  if(header.nDecoding == 196609 ) return true;
+  else return false;
+}
 
 Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
   UInt_t trbWords(0), trbAddress(0), tdcChannel, subEvtId(0), tdcErrCode,
