@@ -146,8 +146,11 @@ vector<string>  gOldFiles0;
 void HldUnpacker::DecodeOnline(string inHld){
   
   Int_t startPos(0), endPos(0);
+  fHldFile.close();
   fHldFile.clear();
   fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
+  fHldFile.clear();
+  
   gOldFiles0.push_back(inHld);
 
   if(fHldFile.is_open()){
