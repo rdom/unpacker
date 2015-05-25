@@ -144,15 +144,14 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
 
 vector<string>  gOldFiles0;
 void HldUnpacker::DecodeOnline(string inHld){
+
+  gOldFiles0.push_back(inHld);
   
   Int_t startPos(0), endPos(0);
   fHldFile.close();
   fHldFile.clear();
   fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
-  fHldFile.clear();
   
-  gOldFiles0.push_back(inHld);
-
   if(fHldFile.is_open()){
     while (true){
       fHldFile.clear();
