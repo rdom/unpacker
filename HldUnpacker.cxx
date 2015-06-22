@@ -434,7 +434,8 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 
   if((startdata-data)%8){
     fHldFile.ignore(4);
-    if(data>4) data -= 4;
+    data -= 4;
+    if(data==4) data -= 4; 
   }
 
   //std::cout<<"DATA  "<<data <<" "<<fDataBytes<<std::endl;
