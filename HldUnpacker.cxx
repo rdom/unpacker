@@ -386,7 +386,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  if(tdcChannel==0){
 	    fRefTime[map_tdc[trbAddress]]=time; 
 	    if(fMode!=0) hRefCh->Fill(map_tdc[trbAddress]);
-	    //	    continue;
+	    continue;
 	  }
 
 	  ch = 48*map_tdc[trbAddress]+tdcChannel-1;
@@ -434,7 +434,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 
   if((startdata-data)%8){
     fHldFile.ignore(4);
-    data -= 4;
+    if(data>=4) data -= 4;
     if(data==4) data -= 4; 
   }
 
