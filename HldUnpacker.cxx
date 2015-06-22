@@ -8,6 +8,7 @@ Int_t gImgid;
 TCanvas *gCanvas = new TCanvas("gCanvas","gCanvas",0,0,800,400);
 TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
 TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",tdcnum,0,tdcnum);
+TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
 			 UInt_t mode,UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode),fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
@@ -36,6 +37,7 @@ void HldUnpacker::Reset(){
   
   hTimeDiff->Reset();
   hRefCh->Reset();
+  hTdcId->Reset();
   if(fMode==3) resetDigi();
 }
 
@@ -81,10 +83,22 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     gCanvas->Modified();
     gCanvas->Update();
     gCanvas->Print(Form("refch_%d.png",gImgid));
-  
+    
+    hTdcId->Draw();
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("tdcid_%d.png",gImgid));
+    
     drawDigi("m,p,v\n",2,-2,-2);
     cDigi->Print(Form("digi_%d.png",gImgid));
     gImgid++;
+
+    for(Int_t i=0; i<10000; i++){
+      if(hTdcId->GetBinContent(i+1)!=0){
+	std::cout<<"tdc "<<i << "  0x" << hex << i << dec <<" has "<< hTdcId->GetBinContent(i+1) << " entries"<<std::endl;	
+      }
+    }
+    
   }
 }
 
@@ -97,7 +111,6 @@ void savePic(TCanvas *c, TString dir, TString path, TString link){
   //gSystem->Unlink(link);
   //gSystem->Symlink(path, link);
 }
-
 
 void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
 
@@ -305,12 +318,11 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
       trbAddress = word & 0xFFFF;
       trbWords   = word>>16;
 
-      //if(trbAddress< 10000 && map_tdc[trbAddress]!=0) {
-      if(trbAddress==8193){
+      // if(trbAddress< 10000 && map_tdc[trbAddress]!=0) {
+      if(trbAddress< 10000){
 	std::cout<<"map_tdc[trbAddress] "<<map_tdc[trbAddress] <<std::endl;
 	std::cout<<RED<<hex<<fTrbData[i]  <<CYAN <<"  a "<<trbAddress << dec<<YELLOW<<"  w "<< trbWords<<std::endl;
       }
-      // }
     }
 
   UInt_t tdcWords(0), tdcAddress(0);
@@ -318,9 +330,9 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     UInt_t word = __builtin_bswap32(fTrbData[i]);
     //std::cout<<"word "<< hex<< word  << dec<<std::endl;
       
-      
     trbAddress = word & 0xFFFF;
     trbWords   = word>>16;
+    //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
 
     if(trbAddress< 10000 && map_tdc[trbAddress]>=0) tdcWords  = trbWords;
 
@@ -355,13 +367,12 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	tdcChannel = (word>>22) & 0x7F; // TDC channel number is represented by 7 bits
 
 	if(tdcLastChannelNo>=0 && (Int_t)tdcChannel != tdcLastChannelNo) {
-	  if(fVerbose)
-	    cout << "Epoch Counter reset since channel has changed" << endl;
-	  epochCounter = 0;
+	  if(fVerbose) cout << "Epoch Counter reset since channel has changed" << endl;
+	  epochCounter = 0; 
 	}
 
 	fineTime      = (word>>12) & 0x3FF; // TDC fine time is represented by 10 bits
-	edge	        = (word>>11) & 0x1;   // TDC edge indicator: 1->rising edge, 0->falling edge
+	edge	        = (word>>11) & 0x1;   // TDC edge indicator: 1->rising edge, 0->falling edge 
 	coarseTime    = word & 0x7FF;       // TDC coarse time is represented by 11 bits
 	Double_t time = 5*(epochCounter*pow(2.0,11) + coarseTime)-(fineTime-31)*0.0102;
 
@@ -369,15 +380,17 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 
 	{
 	  Int_t ch, timeLe,timeTe, timeTot;
+
+	  if(fMode==1) hTdcId->Fill(trbAddress);
 	  if(tdcChannel>48) continue;
 	  if(tdcChannel==0){
-	    fRefTime[map_tdc[trbAddress]]=time;
+	    fRefTime[map_tdc[trbAddress]]=time; 
 	    if(fMode!=0) hRefCh->Fill(map_tdc[trbAddress]);
-	    continue;
+	    //	    continue;
 	  }
 
 	  ch = 48*map_tdc[trbAddress]+tdcChannel-1;
-	
+	  //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
 	  if(edge==0){
 	    fTrailingTime[ch]=time;
 	    continue;
@@ -400,7 +413,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  fHitArray.push_back(hit);
 	}
       }
-    }
+    } 
 
     i += trbWords;
   }
@@ -419,12 +432,14 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     if(fVerbose) cout << "Error in Subevent Builder detected!" << endl;
   }
 
-  // std::cout<<"DATA  "<<data <<" "<<fDataBytes<<std::endl;
-  if(!data) return kTRUE;
   if((startdata-data)%8){
     fHldFile.ignore(4);
-    data -= 4;
+    if(data>4) data -= 4;
   }
+
+  //std::cout<<"DATA  "<<data <<" "<<fDataBytes<<std::endl;
+
+  if(!data) return kTRUE;
   ReadSubEvent(data);
 
   return kTRUE;
