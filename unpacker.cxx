@@ -25,7 +25,7 @@ int main(int argc, const char ** argv){
 
   string tdcAddresses("tdc.list");
   string hubAddresses("hub.list");
-  string inRegex("/d/may2015/ce*.hld");
+  string inRegex("/d/oct2016/beam*.hld");
   string inFile("../data/dd15110143027.hld");
   string outFile("dd.root");
   int s(0),e(0),mode(0),verbose(0),uniqid(0);
