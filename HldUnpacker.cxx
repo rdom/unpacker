@@ -12,7 +12,7 @@ TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
 			 UInt_t mode,UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode),fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
-  fTriggerChannel = 1776;
+  fTriggerChannel = 818;
   fTrailingTime.resize(maxch);
   fRefTime.resize(tdcnum);
   CreateMap();  
@@ -50,8 +50,8 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
   fHldFile.clear();
   fHldFile.seekg(0,ios::beg);
   Reset();
-  
-  if(fMode<3){
+
+  if(fMode==0){
     file = new TFile(fRootName.c_str(),"RECREATE");
     tree = new TTree("data","dirc@gsi hld unpacker",2);  
     tree->Branch("PrtEvent","PrtEvent",&event,128000,2);
@@ -61,15 +61,16 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
   }else{
     if(endEvent==0) endEvent = 1000000;
   }
-
   for(Int_t e = startEvent; e<endEvent; e++){
-    if(e%10000==0) std::cout<<"event # "<< e <<std::endl;
-
+    if(e%1000==0) std::cout<<"event # "<< e <<std::endl;
+    
     if(fMode==0) event = PrtEvent();
     if(ReadEvent(&event, kTRUE)){
-      if(event.GetHitSize()>0) tree->Fill();
+      if(fMode==0 && event.GetHitSize()>0) tree->Fill();
     }else break;
   }
+
+  //return;
   
   if(fMode==0) tree->Write();
   else{
@@ -89,16 +90,15 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     gCanvas->Update();
     gCanvas->Print(Form("tdcid_%d.png",gImgid));
     
-    drawDigi("m,p,v\n",2,-2,-2);
+    drawDigi("m,p,v\n",7,-2,-2);
     cDigi->Print(Form("digi_%d.png",gImgid));
     gImgid++;
 
     for(Int_t i=0; i<10000; i++){
       if(hTdcId->GetBinContent(i+1)!=0){
-	std::cout<<"tdc "<<i << "  0x" << hex << i << dec <<" has "<< hTdcId->GetBinContent(i+1) << " entries"<<std::endl;	
+  	std::cout<<"tdc "<<i << "  0x" << hex << i << dec <<" has "<< hTdcId->GetBinContent(i+1) << " entries"<<std::endl;	
       }
-    }
-    
+    }    
   }
 }
 
@@ -149,7 +149,7 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
   savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
   
   file.open(dir+"pics/digi_"+id+".csv");
-  file<< drawDigi("m,p,v\n",2,-2,-2);
+  file<< drawDigi("m,p,v\n",7,-2,-2);
   file.close();
   savePic(cDigi,dir,"pics/digi_"+id+".png", "digi");
   
@@ -224,7 +224,7 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
     if(skipbytes>0) fHldFile.ignore(skipbytes);
     return kTRUE;
   }
-
+  
   if(!all) fHldFile.ignore(fDataBytes);  
   else{
     if(fVerbose){
@@ -375,7 +375,6 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	edge	        = (word>>11) & 0x1;   // TDC edge indicator: 1->rising edge, 0->falling edge 
 	coarseTime    = word & 0x7FF;       // TDC coarse time is represented by 11 bits
 	Double_t time = 5*(epochCounter*pow(2.0,11) + coarseTime)-(fineTime-31)*0.0102;
-
 	tdcLastChannelNo = (Int_t)tdcChannel;
 
 	{
@@ -384,12 +383,15 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  if(fMode==1) hTdcId->Fill(trbAddress);
 	  if(tdcChannel>48) continue;
 	  if(tdcChannel==0){
-	    fRefTime[map_tdc[trbAddress]]=time; 
-	    if(fMode!=0) hRefCh->Fill(map_tdc[trbAddress]);
+	    Int_t tdc = map_tdc[trbAddress];
+	    if(tdc<0) continue;
+	    fRefTime[tdc]=time; 
+	    if(fMode!=0) hRefCh->Fill(tdc);
 	    continue;
 	  }
 
 	  ch = 48*map_tdc[trbAddress]+tdcChannel-1;
+	  
 	  //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
 	  if(edge==0){
 	    fTrailingTime[ch]=time;

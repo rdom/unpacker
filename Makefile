@@ -10,8 +10,8 @@ OutPutOpt     = -o # keep whitespace after "-o"
 
 ROOTCFLAGS   := $(shell root-config --cflags)
 ROOTLDFLAGS  := $(shell root-config --ldflags)
-ROOTLIBS     := $(shell root-config --libs)
-ROOTGLIBS    := $(shell root-config --glibs)
+ROOTLIBS     := $(shell root-config --libs) -lSpectrum
+ROOTGLIBS    := $(shell root-config --glibs) -lSpectrum
 HASTHREAD    := $(shell root-config --has-thread)
 
 CXX           = g++
