@@ -15,7 +15,7 @@ ROOTGLIBS    := $(shell root-config --glibs) -lSpectrum -lHistPainter
 HASTHREAD    := $(shell root-config --has-thread)
 
 CXX           = g++
-CXXFLAGS      = -g -Wall -fPIC -Wunused-but-set-variable
+CXXFLAGS      = -g -Wall -fPIC -Wunused-but-set-variable -std=gnu++11
 LD            = g++
 LDFLAGS       = -O3
 SOFLAGS       = -shared

@@ -77,12 +77,12 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     hTimeDiff->Draw();
     gCanvas->Modified();
     gCanvas->Update();
-    gCanvas->Print(Form("time_%d.png",gImgid));
+    gCanvas->Print(Form("tyime_%d.png",gImgid));
     hRefCh->Draw();
     gCanvas->Modified();
     gCanvas->Update();
     gCanvas->Print(Form("refch_%d.png",gImgid));
-    
+
     hTdcId->Draw();
     gCanvas->Modified();
     gCanvas->Update();
@@ -148,10 +148,11 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
   hRefCh->Draw();
   savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
   
-  file.open(dir+"pics/digi_"+id+".csv");
-  file<< prt_drawDigi("m,p,v\n",7,-2,-2);
-  file.close();
+  // file.open(dir+"pics/digi_"+id+".csv");
+  // file<< prt_drawDigi("m,p,v\n",2017,0,0);
+  // file.close();
   savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
+  std::cout<<"id "<<id<<std::endl;
   
 }
 
