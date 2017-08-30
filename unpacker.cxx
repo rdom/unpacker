@@ -15,6 +15,7 @@ namespace {
     cout<<"    -e   end event "<<endl;
     cout<<"    -u   uniq id ( 0 default) "<<endl;
     cout<<"    -m   mode; 0 - create root tree (default); 1 - create plots; 3 - online"<<endl;
+    cout<<"    -f   output frequency; 0 - before new data; # - every # event"<<endl;
     cout<<"    -v   verbose level "<<endl;
   }
 }
@@ -25,10 +26,11 @@ int main(int argc, const char ** argv){
 
   string tdcAddresses("tdc.list");
   string hubAddresses("hub.list");
-  string inRegex("/d/aug2017/beam*.hld");
+  //  string inRegex("/d/aug2017/beam*.hld");
+  string inRegex("../data/beam*.hld");
   string inFile("../data/dd15110143027.hld");
   string outFile("dd.root");
-  int s(0),e(0),mode(0),verbose(0),uniqid(0);
+  int s(0),e(0),mode(0),freq(0),verbose(0),uniqid(0);
   
   for (int i=1; i<argc; i=i+2 ) {
     if ( string(argv[i]) == "-i" )      inFile   = argv[i+1];
@@ -37,6 +39,7 @@ int main(int argc, const char ** argv){
     else if ( string(argv[i]) == "-s" ) s  = atoi(argv[i+1]);
     else if ( string(argv[i]) == "-e" ) e  = atoi(argv[i+1]);
     else if ( string(argv[i]) == "-m" ) mode = atoi(argv[i+1]);
+    else if ( string(argv[i]) == "-f" ) freq = atoi(argv[i+1]);
     else if ( string(argv[i]) == "-u" ) uniqid = atoi(argv[i+1]);
     else {
       PrintUsage();
@@ -44,8 +47,9 @@ int main(int argc, const char ** argv){
     }
   }
 
-  HldUnpacker u(inFile,outFile,tdcAddresses,0x8100,0x7999,mode,verbose,uniqid);
-  
+  HldUnpacker u(inFile,outFile,tdcAddresses,0x8100,0x7999,mode,freq,verbose,uniqid);
+
+  system("mkdir -p ../prtonline/data/pics");
   if(mode<3) u.Decode(s,e);
   else{
     std::cout<<"inFile "<< inFile<<std::endl;

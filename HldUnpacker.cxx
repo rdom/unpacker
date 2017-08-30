@@ -8,7 +8,7 @@ TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",prt_ntdc,0,prt_ntdc)
 TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
-			 UInt_t mode,UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode),fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
+			 UInt_t mode, UInt_t freq, UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode), fFreq(freq), fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
   fTriggerChannel = 818;
   fTrailingTime.resize(prt_maxch);
   fRefTime.resize(prt_ntdc);
@@ -16,7 +16,7 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   
   prt_setRootPalette(1);
   gImgid=0;
-
+  
   if(fVerbose>0) std::cout<<"File  "<< inHld <<std::endl;
   
   
@@ -36,7 +36,7 @@ void HldUnpacker::Reset(){
   hTimeDiff->Reset();
   hRefCh->Reset();
   hTdcId->Reset();
-  if(fMode==3) prt_resetDigi();
+  if(fMode==3 || fFreq!=0) prt_resetDigi();
 }
 
 void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
@@ -66,40 +66,15 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     if(ReadEvent(&event, kTRUE)){
       if(fMode==0 && event.GetHitSize()>0) tree->Fill();
     }else break;
+    
+    if(e%fFreq==0 && fFreq !=0) Report(1);
   }
 
   //return;
   
   if(fMode==0) tree->Write();
-  else{
-    TString rand = prt_randstr(10);
-    gImgid+=fUniqId;
-    hTimeDiff->Draw();
-    gCanvas->Modified();
-    gCanvas->Update();
-    gCanvas->Print(Form("tyime_%d.png",gImgid));
-    hRefCh->Draw();
-    gCanvas->Modified();
-    gCanvas->Update();
-    gCanvas->Print(Form("refch_%d.png",gImgid));
+  else Report(1);
 
-    hTdcId->Draw();
-    gCanvas->Modified();
-    gCanvas->Update();
-    gCanvas->Print(Form("tdcid_%d.png",gImgid));
-    
-    //prt_drawDigi("m,p,v\n",2017,-2,-2);
-    prt_drawDigi("m,p,v\n",2017,0,0);
-    
-    prt_cdigi->Print(Form("digi_%d.png",gImgid));
-    gImgid++;
-
-    for(Int_t i=0; i<10000; i++){
-      if(hTdcId->GetBinContent(i+1)!=0){
-  	std::cout<<"tdc "<<i << "  0x" << hex << i << dec <<" has "<< hTdcId->GetBinContent(i+1) << " entries"<<std::endl;	
-      }
-    }    
-  }
 }
 
 void savePic(TCanvas *c, TString dir, TString path, TString link){
@@ -112,55 +87,102 @@ void savePic(TCanvas *c, TString dir, TString path, TString link){
   //gSystem->Symlink(path, link);
 }
 
+void HldUnpacker::Report(Int_t flag){
+  if(flag==1){
+    TString rand = prt_randstr(10);
+    gImgid+=fUniqId;
+    hTimeDiff->Draw();
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("time_%d.png",gImgid));
+    hRefCh->Draw();
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("refch_%d.png",gImgid));
+
+    hTdcId->Draw();
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("tdcid_%d.png",gImgid));
+    
+    prt_drawDigi("m,p,v\n",2017,0,0);
+    prt_cdigi->Print(Form("digi_%d.png",gImgid));
+
+    gImgid++;
+
+    // for(Int_t i=0; i<10000; i++){
+    //   if(hTdcId->GetBinContent(i+1)!=0){
+    //     std::cout<<"tdc "<<i << "  0x" << hex << i << dec <<" has "<< hTdcId->GetBinContent(i+1) << " entries"<<std::endl;	
+    //   }
+    // }
+    Reset();
+  }
+
+  if(flag==2){
+    TString rand = prt_randstr(5);
+    std::stringstream strm;
+    strm << time(NULL);
+    TString id, unixtime = strm.str();
+    if(fMode==3) id = unixtime;
+    else id = Form("%d",gImgid++);
+
+    TString dir = "../prtonline/data/";
+    
+    ofstream  file;
+    if (!std::ifstream(dir+"timeline.csv")){
+      file.open(dir+"timeline.csv");
+      file<< "time,total,mcp \n";
+      file.close();
+    }
+    
+    file.open(dir+"timeline.csv", std::ios::app);
+    file<< unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
+    file.close();
+
+    file.open(dir+"last_timeline");
+    file<< "time,total,mcp \n" + unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
+    file.close();
+  
+  
+    hTimeDiff->Draw();
+    savePic(gCanvas,dir,"pics/time_"+id+".png", "time");
+    hRefCh->Draw();
+    savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
+
+    // file.open(dir+"pics/digi_"+id+".csv");
+    // file<< prt_drawDigi("m,p,v\n",2017,0,0);
+    // file.close();
+
+    prt_drawDigi("m,p,v\n",2017,0,0);
+  
+    savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
+
+    Reset();
+  }
+}
+
 void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
 
   fHldFile.clear();
   fHldFile.seekg(startPos,ios::beg);
-  Reset();
-  
+  if(fFreq==0) Reset();
+
   PrtEvent event;
   Int_t e = 0;
   while(fHldFile.tellg() < endPos){
     if(++e%100000==0) std::cout<<"event # "<< e <<std::endl;
-    if(!ReadEvent(&event, kTRUE))  break;
+    if(!ReadEvent(&event, kTRUE))  break;    
+    if(fEvents++>=fFreq && fFreq!=0){
+      Report(2);
+      fEvents=0;
+    }
   }
-  
-  TString rand = prt_randstr(5);
-  std::stringstream strm;
-  strm << time(NULL);
-  TString id, unixtime = strm.str();
-  if(fMode==3) id = unixtime;
-  else id = Form("%d",gImgid++);
-
-  TString dir = "../prtonline/data/";
-  ofstream  file;
-  file.open(dir+"timeline.csv", std::ios::app);
-  file<< unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
-  file.close();
-
-  file.open(dir+"last_timeline");
-  file<< "time,total,mcp \n" + unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
-  file.close();
-  
-  
-  hTimeDiff->Draw();
-  savePic(gCanvas,dir,"pics/time_"+id+".png", "time");
-  hRefCh->Draw();
-  savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
-
-  // file.open(dir+"pics/digi_"+id+".csv");
-  // file<< prt_drawDigi("m,p,v\n",2017,0,0);
-  // file.close();
-
-  prt_drawDigi("m,p,v\n",2017,0,0);
-  
-  savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
-  
+  if(fFreq==0) Report(2);
 }
 
 vector<string>  gOldFiles0;
 void HldUnpacker::DecodeOnline(string inHld){
-
+  
   gOldFiles0.push_back(inHld);
   
   Int_t startPos(0), endPos(0);
@@ -173,6 +195,7 @@ void HldUnpacker::DecodeOnline(string inHld){
       fHldFile.clear();
       fHldFile.seekg(0, std::ios::end);
       endPos = fHldFile.tellg();
+      
       std::cout<<"File "<<inHld<<"  startPos  "<< startPos << "   endPos  "<<endPos<<std::endl;
       if(startPos<endPos){
 	DecodePos(startPos,endPos);
@@ -245,7 +268,7 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
     //    std::fill(fTrailingTime.begin(), fTrailingTime.end(), 0);
     std::fill(fRefTime.begin(), fRefTime.end(), 0);
     ReadSubEvent(fDataBytes);
-
+    
     fTotalHits += fHitArray.size();
     for(Int_t i=0; i<fHitArray.size(); i++){
       PrtHit hit;

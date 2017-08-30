@@ -50,7 +50,7 @@ using namespace std;
 class HldUnpacker {
 
 public:
-  HldUnpacker(string hldFName, string outFile, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t mode=0, UInt_t verbose=0, UInt_t uniqid=0); 
+  HldUnpacker(string hldFName, string outFile, string tdcFName, UInt_t subEventId, UInt_t ctsAddress, UInt_t mode=0, UInt_t freq =0, UInt_t verbose=0, UInt_t uniqid=0); 
   ~HldUnpacker(){};
 
   Int_t IndexEvents();  
@@ -58,6 +58,7 @@ public:
   void DecodePos(Int_t startPos, Int_t endPos);
   void DecodeOnline(string hldFName);
   void Reset();
+  void Report(Int_t flag);
   Bool_t ReadEvent(PrtEvent* event, Bool_t all);
   Bool_t ReadSubEvent(UInt_t data);
   Bool_t GoodHeader(HLD_HEADER header);
@@ -80,9 +81,11 @@ private:
   Double_t fTriggerTime;
   UInt_t fCurrentSize;
   UInt_t fMode;
+  UInt_t fFreq;
   UInt_t fVerbose;
   UInt_t fDataBytes;
   UInt_t fUniqId;
+  UInt_t fEvents;
 
   // for online monitoring
   UInt_t fTotalHits;
