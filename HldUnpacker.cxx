@@ -147,12 +147,14 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
   savePic(gCanvas,dir,"pics/time_"+id+".png", "time");
   hRefCh->Draw();
   savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
-  
+
   // file.open(dir+"pics/digi_"+id+".csv");
   // file<< prt_drawDigi("m,p,v\n",2017,0,0);
   // file.close();
+
+  prt_drawDigi("m,p,v\n",2017,0,0);
+  
   savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
-  std::cout<<"id "<<id<<std::endl;
   
 }
 
