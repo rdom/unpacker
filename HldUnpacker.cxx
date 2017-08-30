@@ -1,22 +1,20 @@
 #include "HldUnpacker.h"
-#include <TH1F.h>
-#include <TCanvas.h>
-
 #include "../prttools/prttools.C"
 
 Int_t gImgid;
 TCanvas *gCanvas = new TCanvas("gCanvas","gCanvas",0,0,800,400);
 TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
-TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",tdcnum,0,tdcnum);
+TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",prt_ntdc,0,prt_ntdc);
 TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
 			 UInt_t mode,UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode),fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
   fTriggerChannel = 818;
-  fTrailingTime.resize(maxch);
-  fRefTime.resize(tdcnum);
-  CreateMap();  
-  SetRootPalette(1);
+  fTrailingTime.resize(prt_maxch);
+  fRefTime.resize(prt_ntdc);
+  prt_createMap();
+  
+  prt_setRootPalette(1);
   gImgid=0;
 
   if(fVerbose>0) std::cout<<"File  "<< inHld <<std::endl;
@@ -28,7 +26,7 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   }
   
   if(fMode<3)  IndexEvents();
-  if(fMode!=0) initDigi(0);
+  if(fMode!=0) prt_initDigi(0);
 }
 
 void HldUnpacker::Reset(){
@@ -38,7 +36,7 @@ void HldUnpacker::Reset(){
   hTimeDiff->Reset();
   hRefCh->Reset();
   hTdcId->Reset();
-  if(fMode==3) resetDigi();
+  if(fMode==3) prt_resetDigi();
 }
 
 void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
@@ -74,7 +72,7 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
   
   if(fMode==0) tree->Write();
   else{
-    TString rand = randstr(10);
+    TString rand = prt_randstr(10);
     gImgid+=fUniqId;
     hTimeDiff->Draw();
     gCanvas->Modified();
@@ -90,8 +88,10 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     gCanvas->Update();
     gCanvas->Print(Form("tdcid_%d.png",gImgid));
     
-    drawDigi("m,p,v\n",7,-2,-2);
-    cDigi->Print(Form("digi_%d.png",gImgid));
+    //prt_drawDigi("m,p,v\n",2017,-2,-2);
+    prt_drawDigi("m,p,v\n",2017,0,0);
+    
+    prt_cdigi->Print(Form("digi_%d.png",gImgid));
     gImgid++;
 
     for(Int_t i=0; i<10000; i++){
@@ -125,7 +125,7 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
     if(!ReadEvent(&event, kTRUE))  break;
   }
   
-  TString rand = randstr(5);
+  TString rand = prt_randstr(5);
   std::stringstream strm;
   strm << time(NULL);
   TString id, unixtime = strm.str();
@@ -149,9 +149,9 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
   savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
   
   file.open(dir+"pics/digi_"+id+".csv");
-  file<< drawDigi("m,p,v\n",7,-2,-2);
+  file<< prt_drawDigi("m,p,v\n",7,-2,-2);
   file.close();
-  savePic(cDigi,dir,"pics/digi_"+id+".png", "digi");
+  savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
   
 }
 
@@ -254,8 +254,9 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
 
       if(fMode!=0){
 	hTimeDiff->Fill(hit.GetTotTime());
+
 	if(hit.GetMcpId()<15){
-	  fhDigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
+	  prt_hdigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
 	  fMcpHits++;
 	}
       }
@@ -398,14 +399,14 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	    continue;
 	  }
 	  if(ch==fTriggerChannel) fTriggerTime = time;	   
-	    
 	  PrtHit hit;
 	  hit.SetTdc(tdcChannel);
 	  hit.SetTrb(trbAddress);
 	  hit.SetLeadTime(time);
 	  hit.SetChannel(ch);
-	  if(ch<maxmch){
-	    hit.SetMcpId(map_mcp[ch]);
+
+	  if(ch<prt_maxdircch){
+	    hit.SetMcpId(ch/64);
 	    hit.SetPixelId(map_pix[ch]);
 	  }else {
 	    hit.SetMcpId(20);
