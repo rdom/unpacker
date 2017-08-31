@@ -5,6 +5,7 @@ Int_t gImgid;
 TCanvas *gCanvas = new TCanvas("gCanvas","gCanvas",0,0,800,400);
 TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
 TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",prt_ntdc,0,prt_ntdc);
+TH1F* hCh = new TH1F("hCh","cannels;channel [#];entries [#]",prt_maxch,0,prt_maxch);
 TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
@@ -35,6 +36,7 @@ void HldUnpacker::Reset(){
   
   hTimeDiff->Reset();
   hRefCh->Reset();
+  hCh->Reset();
   hTdcId->Reset();
   if(fMode==3 || fFreq!=0) prt_resetDigi();
 }
@@ -83,30 +85,36 @@ void savePic(TCanvas *c, TString dir, TString path, TString link){
   c->Print(dir+path);
   
   gSystem->Exec("cd "+ dir +"&& rm -f last_"+link+" &&  ln -s "+path+" last_"+link);
-  //gSystem->Unlink(link);
-  //gSystem->Symlink(path, link);
 }
 
 void HldUnpacker::Report(Int_t flag){
   if(flag==1){
     TString rand = prt_randstr(10);
     gImgid+=fUniqId;
+
     hTimeDiff->Draw();
     gCanvas->Modified();
     gCanvas->Update();
-    gCanvas->Print(Form("time_%d.png",gImgid));
+    gCanvas->Print(Form("hle_%d.png",gImgid));
+
+    hCh->Draw();
+    gCanvas->Modified();
+    gCanvas->Update();
+    gCanvas->Print(Form("hch_%d.png",gImgid));
+
     hRefCh->Draw();
     gCanvas->Modified();
     gCanvas->Update();
-    gCanvas->Print(Form("refch_%d.png",gImgid));
-
+    gCanvas->Print(Form("hrc_%d.png",gImgid));    
+    
     hTdcId->Draw();
     gCanvas->Modified();
     gCanvas->Update();
-    gCanvas->Print(Form("tdcid_%d.png",gImgid));
+    gCanvas->Print(Form("hti_%d.png",gImgid));
+
     
     prt_drawDigi("m,p,v\n",2017,0,0);
-    prt_cdigi->Print(Form("digi_%d.png",gImgid));
+    prt_cdigi->Print(Form("hhp_%d.png",gImgid));
 
     gImgid++;
 
@@ -143,19 +151,22 @@ void HldUnpacker::Report(Int_t flag){
     file<< "time,total,mcp \n" + unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
     file.close();
   
-  
+
+    
+    gCanvas =  new TCanvas("gCanvas","gCanvas",0,0,800,400);
     hTimeDiff->Draw();
-    savePic(gCanvas,dir,"pics/time_"+id+".png", "time");
+    savePic(gCanvas,dir,"pics/hle_"+id+".png","hle");
+    
+    gCanvas =  new TCanvas("gCanvas","gCanvas",0,0,800,400);
+    hCh->Draw();
+    savePic(gCanvas,dir,"pics/hch_"+id+".png","hch");
+
+    gCanvas =  new TCanvas("gCanvas","gCanvas",0,0,800,400);
     hRefCh->Draw();
-    savePic(gCanvas,dir,"pics/refch_"+id+".png","refch");
+    savePic(gCanvas,dir,"pics/hrc_"+id+".png","hrc");
 
-    // file.open(dir+"pics/digi_"+id+".csv");
-    // file<< prt_drawDigi("m,p,v\n",2017,0,0);
-    // file.close();
-
-    prt_drawDigi("m,p,v\n",2017,0,0);
-  
-    savePic(prt_cdigi,dir,"pics/digi_"+id+".png", "digi");
+    prt_drawDigi("m,p,v\n",2017,0,0);  
+    savePic(prt_cdigi,dir,"pics/hhp_"+id+".png", "hhp");
 
     Reset();
   }
@@ -418,6 +429,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  }
 
 	  ch = 48*map_tdc[trbAddress]+tdcChannel-1;
+	  hCh->Fill(ch);
 	  
 	  //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
 	  if(edge==0){
