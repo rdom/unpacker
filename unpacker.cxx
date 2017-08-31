@@ -29,6 +29,7 @@ int main(int argc, const char ** argv){
   string inRegex("/d/aug2017/beam*.hld");
   //string inRegex("../data/beam*.hld");
   string inFile("../data/dd15110143027.hld");
+  
   string outFile("dd.root");
   int s(0),e(0),mode(0),freq(0),verbose(0),uniqid(0);
   
@@ -43,10 +44,21 @@ int main(int argc, const char ** argv){
     else if ( string(argv[i]) == "-u" ) uniqid = atoi(argv[i+1]);
     else {
       PrintUsage();
-         return 1;
+      return 1;
     }
   }
 
+  if (inFile.find("*") != std::string::npos) {
+    std::cout<<"inFile "<<inFile<<std::endl;
+    
+    if(mode<3) {
+      PrintUsage();
+      return 1;
+    }else{
+      inRegex = inFile;
+    }
+  }
+  
   HldUnpacker u(inFile,outFile,tdcAddresses,0x8100,0x7999,mode,freq,verbose,uniqid);
 
   system("mkdir -p ../prtonline/data/pics");

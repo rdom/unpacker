@@ -290,7 +290,7 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
       if(fMode==0) event->AddHit(hit);
 
       if(fMode!=0){
-	hTimeDiff->Fill(hit.GetTotTime());
+	hTimeDiff->Fill(hit.GetLeadTime());
 
 	if(hit.GetMcpId()<15){
 	  prt_hdigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
