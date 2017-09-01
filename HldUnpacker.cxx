@@ -113,7 +113,7 @@ void HldUnpacker::Report(Int_t flag){
     gCanvas->Print(Form("hti_%d.png",gImgid));
 
     
-    prt_drawDigi("m,p,v\n",2017,0,0);
+    prt_drawDigi("m,p,v\n",2017,-2,-2);
     prt_cdigi->Print(Form("hhp_%d.png",gImgid));
 
     gImgid++;
@@ -165,7 +165,7 @@ void HldUnpacker::Report(Int_t flag){
     hRefCh->Draw();
     savePic(gCanvas,dir,"pics/hrc_"+id+".png","hrc");
 
-    prt_drawDigi("m,p,v\n",2017,0,0);  
+    prt_drawDigi("m,p,v\n",2017,-2,-2);  
     savePic(prt_cdigi,dir,"pics/hhp_"+id+".png", "hhp");
 
     Reset();
