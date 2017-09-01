@@ -3,14 +3,14 @@
 
 Int_t gImgid;
 TCanvas *gCanvas = new TCanvas("gCanvas","gCanvas",0,0,800,400);
-TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",100,-200,200);
+TH1F* hTimeDiff = new TH1F("hTimeDiff","hTimeDiff;time [ns];entries [#]",1000,-300,300);
 TH1F* hRefCh = new TH1F("RefCh","RefCh;tdc [#];entries [#]",prt_ntdc,0,prt_ntdc);
 TH1F* hCh = new TH1F("hCh","cannels;channel [#];entries [#]",prt_maxch,0,prt_maxch);
 TH1F* hTdcId = new TH1F("TdcId","TdcId;tdc [#];entries [#]",10000,0,10000);
 
 HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t subEventId, UInt_t ctsAddress,
 			 UInt_t mode, UInt_t freq, UInt_t verbose, UInt_t uniqid) : fRootName(outRoot), fMode(mode), fFreq(freq), fVerbose(verbose), fUniqId(uniqid),fTotalHits(0),fMcpHits(0){
-  fTriggerChannel = 818;
+  fTriggerChannel = 816;
   fTrailingTime.resize(prt_maxch);
   fRefTime.resize(prt_ntdc);
   prt_createMap();
@@ -285,16 +285,20 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
       PrtHit hit;
       hit = fHitArray[i];
       Int_t ch = hit.GetChannel();
-      hit.SetLeadTime(hit.GetLeadTime()-fTriggerTime);
+      Double_t le = (hit.GetLeadTime() - fRefTime[map_tdc[hit.GetTrb()]]) - (fTriggerTime - fTriggerRefTime);
+      //      hit.SetLeadTime(hit.GetLeadTime() -fTriggerTime);
+      hit.SetLeadTime(le);
       hit.SetTotTime(hit.GetLeadTime()-fTrailingTime[ch]);
       if(fMode==0) event->AddHit(hit);
 
       if(fMode!=0){
-	hTimeDiff->Fill(hit.GetLeadTime());
+	if(ch<prt_maxdircch)  hTimeDiff->Fill(le);
 
-	if(hit.GetMcpId()<15){
-	  prt_hdigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
-	  fMcpHits++;
+	if(le >-150 && le<-50){
+	  if(hit.GetMcpId()<15){
+	    prt_hdigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
+	    fMcpHits++;
+	  }
 	}
       }
     }
@@ -425,6 +429,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	    if(tdc<0) continue;
 	    fRefTime[tdc]=time; 
 	    if(fMode!=0) hRefCh->Fill(tdc);
+	    if(ch==fTriggerChannel) fTriggerRefTime = time;
 	    continue;
 	  }
 
@@ -436,7 +441,9 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	    fTrailingTime[ch]=time;
 	    continue;
 	  }
-	  if(ch==fTriggerChannel) fTriggerTime = time;	   
+	  if(ch==fTriggerChannel) {
+	    fTriggerTime = time;
+	  }
 	  PrtHit hit;
 	  hit.SetTdc(tdcChannel);
 	  hit.SetTrb(trbAddress);

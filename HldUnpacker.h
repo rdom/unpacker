@@ -79,6 +79,7 @@ private:
 
   Int_t fTriggerChannel;
   Double_t fTriggerTime;
+  Double_t fTriggerRefTime;
   UInt_t fCurrentSize;
   UInt_t fMode;
   UInt_t fFreq;
