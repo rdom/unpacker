@@ -87,7 +87,8 @@ private:
   UInt_t fDataBytes;
   UInt_t fUniqId;
   UInt_t fEvents;
-
+  UInt_t fFlippedEntry;
+  
   // for online monitoring
   UInt_t fTotalHits;
   UInt_t fMcpHits;

@@ -14,6 +14,7 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   fTrailingTime.resize(prt_maxch);
   fRefTime.resize(prt_ntdc);
   prt_createMap();
+  fFlippedEntry=0;
   
   prt_setRootPalette(1);
   gImgid=0;
@@ -39,6 +40,7 @@ void HldUnpacker::Reset(){
   hCh->Reset();
   hTdcId->Reset();
   if(fMode==3 || fFreq!=0) prt_resetDigi();
+  fFlippedEntry=0;
 }
 
 void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
@@ -62,21 +64,26 @@ void HldUnpacker::Decode(Int_t startEvent, Int_t endEvent) {
     if(endEvent==0) endEvent = 1000000;
   }
   for(Int_t e = startEvent; e<endEvent; e++){
-    if(e%1000==0) std::cout<<"event # "<< e <<std::endl;
+    if(e%1==0) std::cout<<"event # "<< e <<std::endl;
     
     if(fMode==0) event = PrtEvent();
     if(ReadEvent(&event, kTRUE)){
-      if(fMode==0 && event.GetHitSize()>0) tree->Fill();
+      if(fMode==0 && event.GetHitSize()>0) tree->Fill();      
     }else break;
-    
-    if(e%fFreq==0 && fFreq !=0) Report(1);
+
+    if(fFreq !=0 && e%fFreq==0 &&  fMode!=0) Report(1);
   }
 
   //return;
   
-  if(fMode==0) tree->Write();
+  if(fMode==0) {
+    tree->Write();
+    file->Write();
+    file->Close();
+  }
   else Report(1);
-
+  
+  
 }
 
 void savePic(TCanvas *c, TString dir, TString path, TString link){
@@ -88,6 +95,8 @@ void savePic(TCanvas *c, TString dir, TString path, TString link){
 }
 
 void HldUnpacker::Report(Int_t flag){
+  std::cout<<"fFlippedEntry "<<fFlippedEntry<<std::endl;
+  
   if(flag==1){
     TString rand = prt_randstr(10);
     gImgid+=fUniqId;
@@ -139,16 +148,18 @@ void HldUnpacker::Report(Int_t flag){
     ofstream  file;
     if (!std::ifstream(dir+"timeline.csv")){
       file.open(dir+"timeline.csv");
-      file<< "time,total,mcp \n";
+      file<< "time,total,mcp,flipped\n";
       file.close();
     }
-    
-    file.open(dir+"timeline.csv", std::ios::app);
-    file<< unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
-    file.close();
+
+    if(fTotalHits>0){
+      file.open(dir+"timeline.csv", std::ios::app);
+      file<< unixtime+Form(",%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry);
+      file.close();
+    }
 
     file.open(dir+"last_timeline");
-    file<< "time,total,mcp \n" + unixtime+Form(",%d,%d \n",fTotalHits,fMcpHits);
+    file<< "time,total,mcp,flipped\n" + unixtime+Form(",%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry);
     file.close();
   
 
@@ -170,6 +181,7 @@ void HldUnpacker::Report(Int_t flag){
 
     Reset();
   }
+  
 }
 
 void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
@@ -301,14 +313,13 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
 	  }
 	}
       }
-    }
+    }    
     if(fMode==0) event->SetTime(10);
   }
-
+  
   //skip empty bytes at the end of event
   UInt_t skipbytes = baseEventSize * (size_t)((fEventHeader.nSize-1)/baseEventSize + 1) - fEventHeader.nSize;
   if(skipbytes>0) fHldFile.ignore(skipbytes);
-  
   return kTRUE;
 }
 
@@ -379,6 +390,9 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
     if(trbAddress< 10000 && map_tdc[trbAddress]>=0) tdcWords  = trbWords;
 
     if(tdcWords>0){
+
+      Int_t mult[prt_maxch]={0};
+      memset(mult, 0, sizeof(mult));
       for(UInt_t t=0; t<tdcWords; t++){
 	word = __builtin_bswap32(fTrbData[i+1+t]);
 	//std::cout<<" "<< hex<< word  << dec<<std::endl;
@@ -437,10 +451,13 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  hCh->Fill(ch);
 	  
 	  //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
-	  if(edge==0){
-	    fTrailingTime[ch]=time;
-	    continue;
-	  }
+	  mult[ch]++;
+	  
+	    if(edge==0){
+	      if(mult[ch]==1) fFlippedEntry++;
+	      fTrailingTime[ch]=time;
+	      continue;
+	    }
 	  if(ch==fTriggerChannel) {
 	    fTriggerTime = time;
 	  }
