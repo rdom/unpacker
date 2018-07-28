@@ -148,7 +148,7 @@ void HldUnpacker::Report(Int_t flag){
     ofstream  file;
     if (!std::ifstream(dir+"timeline.csv")){
       file.open(dir+"timeline.csv");
-      file<< "time,total,mcp,flipped,data type\n";
+      file<< "time,total,mcp,flipped,type\n";
       file.close();
     }
 
@@ -159,7 +159,7 @@ void HldUnpacker::Report(Int_t flag){
     }
 
     file.open(dir+"last_timeline");
-    file<< "time,total,mcp,flipped\n" + unixtime+Form(",%d,%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry,fDataType);
+    file<< "time,total,mcp,flipped,type\n" + unixtime+Form(",%d,%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry,fDataType);
     file.close();
   
 
