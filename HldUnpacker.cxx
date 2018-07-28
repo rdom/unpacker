@@ -15,12 +15,15 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   fRefTime.resize(prt_ntdc);
   prt_createMap();
   fFlippedEntry=0;
+  fDataType=0;
   
   prt_setRootPalette(1);
   gImgid=0;
   
   if(fVerbose>0) std::cout<<"File  "<< inHld <<std::endl;
-  
+  if(inHld.find("trb") != std::string::npos) fDataType=0;
+  if(inHld.find("pilas") != std::string::npos) fDataType=1;
+  if(inHld.find("beam") != std::string::npos) fDataType=2;
   
   if(fMode<3){
     fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
@@ -148,18 +151,18 @@ void HldUnpacker::Report(Int_t flag){
     ofstream  file;
     if (!std::ifstream(dir+"timeline.csv")){
       file.open(dir+"timeline.csv");
-      file<< "time,total,mcp,flipped\n";
+      file<< "time,total,mcp,flipped,data type\n";
       file.close();
     }
 
     if(fTotalHits>0){
       file.open(dir+"timeline.csv", std::ios::app);
-      file<< unixtime+Form(",%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry);
+      file<< unixtime+Form(",%d,%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry,fDataType);
       file.close();
     }
 
     file.open(dir+"last_timeline");
-    file<< "time,total,mcp,flipped\n" + unixtime+Form(",%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry);
+    file<< "time,total,mcp,flipped\n" + unixtime+Form(",%d,%d,%d,%d\n",fTotalHits,fMcpHits,fFlippedEntry,fDataType);
     file.close();
   
 
@@ -469,7 +472,7 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	  hit.SetChannel(ch);
 
 	  if(ch<prt_maxdircch){
-	    hit.SetMcpId(ch/64);
+	    hit.SetMcpId(map_mcp[ch]);
 	    hit.SetPixelId(map_pix[ch]);
 	  }else {
 	    hit.SetMcpId(20);
