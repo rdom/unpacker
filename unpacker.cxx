@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -26,7 +27,7 @@ int main(int argc, const char ** argv){
 
   string tdcAddresses("tdc.list");
   string hubAddresses("hub.list");
-  string inRegex("/d/aug2017/beam*.hld");
+  string inRegex("/d/jul2018/beam*.hld");
   //string inRegex("../data/beam*.hld");
   string inFile("../data/dd15110143027.hld");
   

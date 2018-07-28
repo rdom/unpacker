@@ -28,7 +28,7 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   }
   
   if(fMode<3)  IndexEvents();
-  if(fMode!=0) prt_initDigi(0);
+  if(fMode!=0) prt_initDigi(1);
 }
 
 void HldUnpacker::Reset(){
@@ -122,7 +122,7 @@ void HldUnpacker::Report(Int_t flag){
     gCanvas->Print(Form("hti_%d.png",gImgid));
 
     
-    prt_drawDigi("m,p,v\n",2018,-2,-2);
+    prt_drawDigi("m,p,v\n",2018,-2,0);
     prt_cdigi->Print(Form("hhp_%d.png",gImgid));
 
     gImgid++;
@@ -176,7 +176,7 @@ void HldUnpacker::Report(Int_t flag){
     hRefCh->Draw();
     savePic(gCanvas,dir,"pics/hrc_"+id+".png","hrc");
 
-    prt_drawDigi("m,p,v\n",2018,-2,-2);  
+    prt_drawDigi("m,p,v\n",2018,-2,0);  
     savePic(prt_cdigi,dir,"pics/hhp_"+id+".png", "hhp");
 
     Reset();
@@ -306,12 +306,12 @@ Bool_t HldUnpacker::ReadEvent(PrtEvent *event, Bool_t all){
       if(fMode!=0){
 	if(ch<prt_maxdircch)  hTimeDiff->Fill(le);
 
-	if(le >-150 && le<-50){
+	//if(le >-150 && le<-50){
 	  if(hit.GetMcpId()<15){
 	    prt_hdigi[hit.GetMcpId()]->Fill(map_col[ch],map_row[ch]);
 	    fMcpHits++;
 	  }
-	}
+	  //}
       }
     }    
     if(fMode==0) event->SetTime(10);
@@ -447,7 +447,8 @@ Bool_t HldUnpacker::ReadSubEvent(UInt_t data){
 	    continue;
 	  }
 
-	  ch = 48*map_tdc[trbAddress]+tdcChannel-1;
+	  ch = prt_getChannelNumber(map_tdc[trbAddress],tdcChannel-1);
+	    //48*map_tdc[trbAddress]+tdcChannel-1;
 	  hCh->Fill(ch);
 	  
 	  //std::cout<<"trbAddress "<< dec << trbAddress <<"  "<<hex<<trbAddress << dec<<std::endl;
