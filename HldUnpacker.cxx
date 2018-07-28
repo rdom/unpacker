@@ -21,9 +21,6 @@ HldUnpacker::HldUnpacker(string inHld, string outRoot ,string tdcFName, UInt_t s
   gImgid=0;
   
   if(fVerbose>0) std::cout<<"File  "<< inHld <<std::endl;
-  if(inHld.find("trb") != std::string::npos) fDataType=0;
-  if(inHld.find("pilas") != std::string::npos) fDataType=1;
-  if(inHld.find("beam") != std::string::npos) fDataType=2;
   
   if(fMode<3){
     fHldFile.open(inHld.c_str(), ifstream::in | ifstream::binary);
@@ -208,6 +205,10 @@ void HldUnpacker::DecodePos(Int_t startPos, Int_t endPos) {
 
 vector<string>  gOldFiles0;
 void HldUnpacker::DecodeOnline(string inHld){
+  
+  if(inHld.find("trb") != std::string::npos) fDataType=0;
+  if(inHld.find("pilas") != std::string::npos) fDataType=1;
+  if(inHld.find("beam") != std::string::npos) fDataType=2;
   
   gOldFiles0.push_back(inHld);
   
