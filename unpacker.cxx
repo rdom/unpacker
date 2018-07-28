@@ -10,7 +10,7 @@ using namespace std;
 namespace {
   void PrintUsage() {
     cout<<"Usage: "<<endl;
-    cout<<"    -i   inputFile.hld   (or /d/aug2017/beam*.hld im -m3 option is used)"<<endl;
+    cout<<"    -i   inputFile.hld   (or /d/aug2017/*.hld im -m3 option is used)"<<endl;
     cout<<"    -o   outputFile.root "<<endl;
     cout<<"    -s   start event "<<endl;
     cout<<"    -e   end event "<<endl;
